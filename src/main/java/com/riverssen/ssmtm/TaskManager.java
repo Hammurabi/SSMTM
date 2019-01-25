@@ -3,7 +3,7 @@ package com.riverssen.ssmtm;
 import java.util.Queue;
 import java.util.Set;
 
-public interface TaskManager
+public interface TaskManager extends Runnable
 {
     /**
      * @param message

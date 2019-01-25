@@ -12,9 +12,9 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class TCPPeer implements Runnable
 {
-    private final Queue<Message>     mMessageSendQueue;
-    private final Queue<Message>     mMessageReceiveQueue;
-    private final Peer mPeer;
+    private final Queue<Message>        mMessageSendQueue;
+    private final Queue<Message>        mMessageReceiveQueue;
+    private final Peer                  mPeer;
     private Lock                        mLock;
     private boolean                     mKeepRunning;
     private Socket                      mSocket;

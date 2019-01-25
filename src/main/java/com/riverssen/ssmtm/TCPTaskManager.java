@@ -10,7 +10,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class TCPTaskManager implements TaskManager, Runnable
+public class TCPTaskManager implements TaskManager
 {
     private final Set<Peer>                             mPeers;
     private final Map<byte[], SSMCallBack<Message>>     mMessageCallbacks;
@@ -21,8 +21,9 @@ public class TCPTaskManager implements TaskManager, Runnable
     private boolean                                     mKeepRunning;
     private int                                         mConnectionLimit;
     private List<Command>                               mCommands;
+    private short                                       mPort;
 
-    public TCPTaskManager(final int connectionLimit)
+    public TCPTaskManager(final int connectionLimit, short port)
     {
         this.mPeers             = new LinkedHashSet<Peer>();
         this.mMessageCallbacks  = new HashMap<byte[], SSMCallBack<Message>>();
@@ -31,6 +32,7 @@ public class TCPTaskManager implements TaskManager, Runnable
         this.mReceivedQueue     = new LinkedList<Message>();
         this.mConnectionLimit   = connectionLimit;
         this.mCommands          = new ArrayList<>();
+        this.mPort              = port;
     }
 
     private void PollMessages()
@@ -95,6 +97,8 @@ public class TCPTaskManager implements TaskManager, Runnable
                      mConnections.put(peer.toString(), TCPpeer);
                      mPeers.add(peer);
 
+                    System.out.println("connected to: " + peer);
+
                      succeeded = true;
                 } catch (Exception e)
                 {
@@ -125,6 +129,8 @@ public class TCPTaskManager implements TaskManager, Runnable
 
                     mConnections.put(peer.toString(), TCPpeer);
                     mPeers.add(peer);
+
+                    System.out.println("connected to: " + peer);
                 } catch (Exception e)
                 {
                 }
@@ -194,7 +200,7 @@ public class TCPTaskManager implements TaskManager, Runnable
 
             try
             {
-                mServerSocket = new ServerSocket();
+                mServerSocket = new ServerSocket(mPort);
             } catch (IOException e)
             {
                 e.printStackTrace();
