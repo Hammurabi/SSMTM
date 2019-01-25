@@ -13,11 +13,18 @@ public class ssmMessage
      */
     public ssmMessage(final ssmCallBack<ssmMessage> callBack, final int numtries, final int type, final byte[] data)
     {
+        this(callBack, numtries, type, data, null);
+    }
+
+    public ssmMessage(final ssmCallBack<ssmMessage> callBack, final int numtries, final int type, final byte[] data, ssmPeer peer)
+    {
         this.mData          = data;
         this.mReplyCallBack = callBack;
         this.mNumTries      = numtries;
         this.mShouldReply   = callBack == null ? false : true;
         this.mType          = type;
+        this.mReplyID       = new byte[0];
+        this.mPeer          = peer;
     }
 
     private final int                       mType;
@@ -27,8 +34,10 @@ public class ssmMessage
     private int                             mTries;
     private ssmPeer                         mPeer;
     private final boolean                   mShouldReply;
+    private final byte[]                    mReplyID;
+    private long                            mLastTry;
 
-    public ssmMessage(int type, boolean shouldReply, byte[] serializedMessage, ssmPeer peer)
+    public ssmMessage(int type, boolean shouldReply, byte[] replyID, byte[] serializedMessage, ssmPeer peer)
     {
         this.mData          = serializedMessage;
         this.mType          = type;
@@ -36,6 +45,7 @@ public class ssmMessage
         this.mReplyCallBack = null;
         this.mNumTries      = 0;
         this.mShouldReply   = shouldReply;
+        this.mReplyID       = replyID;
     }
 
     public byte[] GetData()
@@ -46,6 +56,7 @@ public class ssmMessage
     public byte[] Send()
     {
         mTries ++;
+        mLastTry = System.currentTimeMillis();
 
         return mData;
     }
@@ -62,7 +73,12 @@ public class ssmMessage
 
     public boolean ShouldSend()
     {
-        return mTries > mNumTries;
+        return mNumTries > mTries;
+    }
+
+    public boolean CanSend()
+    {
+        return (System.currentTimeMillis() - mLastTry) > 500L;
     }
 
     public boolean GetShouldReply()
@@ -85,6 +101,11 @@ public class ssmMessage
         return encodedhash;
     }
 
+    public byte[] GetReplyID()
+    {
+        return mReplyID;
+    }
+
     public byte[] GetID()
     {
         return sha256(sha256(mData));
@@ -93,5 +114,10 @@ public class ssmMessage
     public int GetType()
     {
         return mType;
+    }
+
+    public ssmPeer GetPeer()
+    {
+        return mPeer;
     }
 }

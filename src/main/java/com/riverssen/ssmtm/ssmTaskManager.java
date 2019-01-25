@@ -1,5 +1,6 @@
 package com.riverssen.ssmtm;
 
+import java.util.Queue;
 import java.util.Set;
 
 public interface ssmTaskManager
@@ -9,7 +10,7 @@ public interface ssmTaskManager
      *
      * This will broadcast the message to all connected peers.
      */
-    void SendMessage(ssmMessage message);
+    void SendMessage(final ssmMessage message);
 
     /**
      * @param message
@@ -17,14 +18,17 @@ public interface ssmTaskManager
      *
      * This will send a message to a specific peer.
      */
-    void SendMessage(ssmMessage message, ssmPeer peer);
+    void SendMessage(final ssmMessage message, final ssmPeer peer);
 
     /**
      * @param peer
      *
      * Attempt to connect to a peer.
      */
-    void ForceConnect(ssmPeer peer);
+    boolean ForceConnect(final ssmPeer peer, int port);
+    boolean ForceDisconnect(final ssmPeer peer);
 
     Set<ssmPeer> GetConnected();
+
+    Queue<ssmMessage> GetMessages();
 }

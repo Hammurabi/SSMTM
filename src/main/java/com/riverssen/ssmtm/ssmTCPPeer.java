@@ -34,6 +34,8 @@ public class ssmTCPPeer implements Runnable
         this.mDataOutputStream      = new DataOutputStream(socket.getOutputStream());
         this.mDataInputStream       = new DataInputStream(socket.getInputStream());
         this.mNumCorrupted          = new AtomicLong(0);
+
+
     }
 
     public void Poll(final Queue<ssmMessage> receiverQueue)
@@ -80,13 +82,20 @@ public class ssmTCPPeer implements Runnable
         return mNumCorrupted.get() > 20;
     }
 
-    private void Send(final int type, final boolean shouldReply, final byte digest[], final byte[] message)
+    private void Send(final int type, final boolean shouldReply, final byte digest[], final byte replyID[], final byte[] message)
     {
         try {
             /**
              * We send the digest first (message->id(sha256(sha256(message->data)))
              */
             mDataOutputStream.write(digest);
+
+            /**
+             * We send the reply-id (previous message digest) (message->replyid)
+             */
+            mDataOutputStream.writeByte(replyID.length);
+            if (replyID.length > 0)
+                mDataOutputStream.write(replyID);
 
             /**
              * We then write out the type of the message.
@@ -124,6 +133,10 @@ public class ssmTCPPeer implements Runnable
             mDataInputStream.readFully(digest);
 
             try {
+                byte replyID[]  = new byte[mDataInputStream.read()];
+                if (replyID.length > 0)
+                    mDataInputStream.readFully(replyID);
+
                 int  type       = mDataInputStream.readByte();
 
                 boolean reply   = mDataInputStream.readBoolean();
@@ -133,13 +146,13 @@ public class ssmTCPPeer implements Runnable
 
                 mDataInputStream.readFully(message);
 
-                mMessageReceiveQueue.add(new ssmMessage(type, reply, message, mPeer));
+                mMessageReceiveQueue.add(new ssmMessage(type, reply, replyID, message, mPeer));
             } catch (Exception e)
             {
                 mNumCorrupted.set(mNumCorrupted.get() + 1);
                 ssmMessage message = new MessageCorrupted(digest);
 
-                Send(message.GetType(), true, message.GetID(), message.GetData());
+                Send(message.GetType(), true, message.GetID(), message.GetReplyID(), message.GetData());
             }
         } catch (Exception e)
         {
@@ -147,6 +160,7 @@ public class ssmTCPPeer implements Runnable
         }
     }
 
+    @Override
     public void run()
     {
         mLock = new ReentrantLock();
@@ -157,7 +171,7 @@ public class ssmTCPPeer implements Runnable
             mLock.lock();
             try{
                 for (ssmMessage message : mMessageSendQueue)
-                    Send(message.GetType(), message.GetShouldReply(), message.GetID(), message.GetData());
+                    Send(message.GetType(), message.GetShouldReply(), message.GetID(), message.GetReplyID(), message.GetData());
 
                 mMessageSendQueue.clear();
 
@@ -181,6 +195,8 @@ public class ssmTCPPeer implements Runnable
         try {
             mDataOutputStream.close();
             mDataInputStream.close();
+
+            mSocket.close();
         } catch (IOException e)
         {
             e.printStackTrace();
