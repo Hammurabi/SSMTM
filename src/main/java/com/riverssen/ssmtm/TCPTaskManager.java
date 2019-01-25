@@ -10,42 +10,44 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class ssmTCPTaskManager implements ssmTaskManager, Runnable
+public class TCPTaskManager implements TaskManager, Runnable
 {
-    private final Set<ssmPeer>                          mPeers;
-    private final Map<byte[], ssmCallBack<ssmMessage>>  mMessageCallbacks;
-    private final Map<byte[], ssmMessage>               mMessages;
-    private final Map<String, ssmTCPPeer>               mConnections;
-    private final Queue<ssmMessage>                     mReceivedQueue;
+    private final Set<Peer>                             mPeers;
+    private final Map<byte[], SSMCallBack<Message>>     mMessageCallbacks;
+    private final Map<byte[], Message>                  mMessages;
+    private final Map<String, TCPPeer>                  mConnections;
+    private final Queue<Message>                        mReceivedQueue;
     private Lock                                        mLock;
     private boolean                                     mKeepRunning;
     private int                                         mConnectionLimit;
+    private List<Command>                               mCommands;
 
-    public ssmTCPTaskManager(final int connectionLimit)
+    public TCPTaskManager(final int connectionLimit)
     {
-        this.mPeers             = new LinkedHashSet<ssmPeer>();
-        this.mMessageCallbacks  = new HashMap<byte[], ssmCallBack<ssmMessage>>();
-        this.mMessages          = new HashMap<byte[], ssmMessage>();
-        this.mConnections       = new HashMap<String, ssmTCPPeer>();
-        this.mReceivedQueue     = new LinkedList<ssmMessage>();
+        this.mPeers             = new LinkedHashSet<Peer>();
+        this.mMessageCallbacks  = new HashMap<byte[], SSMCallBack<Message>>();
+        this.mMessages          = new HashMap<byte[], Message>();
+        this.mConnections       = new HashMap<String, TCPPeer>();
+        this.mReceivedQueue     = new LinkedList<Message>();
         this.mConnectionLimit   = connectionLimit;
+        this.mCommands          = new ArrayList<>();
     }
 
     private void PollMessages()
     {
-        for (ssmPeer peer : mPeers)
+        for (Peer peer : mPeers)
         {
-            ssmTCPPeer pServer = mConnections.get(peer.toString());
+            TCPPeer pServer = mConnections.get(peer.toString());
 
             pServer.Poll(mReceivedQueue);
         }
     }
 
-    public void SendMessage(final ssmMessage message)
+    public void SendMessage(final Message message)
     {
-        for (ssmPeer peer : mPeers)
+        for (Peer peer : mPeers)
         {
-            ssmTCPPeer pServer = mConnections.get(peer.toString());
+            TCPPeer pServer = mConnections.get(peer.toString());
 
             pServer.Send(message);
 
@@ -59,7 +61,7 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
         }
     }
 
-    public void SendMessage(final ssmMessage message, final ssmPeer peer)
+    public void SendMessage(final Message message, final Peer peer)
     {
         if (mConnections.containsKey(peer.toString()))
         {
@@ -74,7 +76,7 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
         }
     }
 
-    public boolean ForceConnect(final ssmPeer peer, int port)
+    public boolean ForceConnect(final Peer peer, int port)
     {
         mLock.lock();
         boolean succeeded = false;
@@ -84,13 +86,13 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
             {
                 try {
                      Socket socket = new Socket(peer.GetAddress(), port);
-                     ssmTCPPeer ssmTCPpeer = new ssmTCPPeer(peer, socket);
-//                     ssmTCPpeer.start();
+                     TCPPeer TCPpeer = new TCPPeer(peer, socket);
+//                     TCPpeer.start();
 
                     ExecutorService service = Executors.newSingleThreadExecutor();
-                    service.execute(ssmTCPpeer);
+                    service.execute(TCPpeer);
 
-                     mConnections.put(peer.toString(), ssmTCPpeer);
+                     mConnections.put(peer.toString(), TCPpeer);
                      mPeers.add(peer);
 
                      succeeded = true;
@@ -105,7 +107,7 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
         }
     }
 
-    public void AddConnection(final ssmPeer peer, Socket socket)
+    public void AddConnection(final Peer peer, Socket socket)
     {
         mLock.lock();
 
@@ -115,13 +117,13 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
             {
                 try
                 {
-                    ssmTCPPeer ssmTCPpeer = new ssmTCPPeer(peer, socket);
-//                    ssmTCPpeer.start();
+                    TCPPeer TCPpeer = new TCPPeer(peer, socket);
+//                    TCPpeer.start();
 
                     ExecutorService service = Executors.newSingleThreadExecutor();
-                    service.execute(ssmTCPpeer);
+                    service.execute(TCPpeer);
 
-                    mConnections.put(peer.toString(), ssmTCPpeer);
+                    mConnections.put(peer.toString(), TCPpeer);
                     mPeers.add(peer);
                 } catch (Exception e)
                 {
@@ -137,7 +139,7 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
         }
     }
 
-    public boolean ForceDisconnect(final ssmPeer peer)
+    public boolean ForceDisconnect(final Peer peer)
     {
         mLock.lock();
         boolean succeeded = false;
@@ -158,14 +160,27 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
         }
     }
 
-    public Set<ssmPeer> GetConnected()
+    public Set<Peer> GetConnected()
     {
         return mPeers;
     }
 
-    public Queue<ssmMessage> GetMessages()
+    public Queue<Message> GetMessages()
     {
         return mReceivedQueue;
+    }
+
+    @Override
+    public void RegisterCommand(final int command, final CommandExecutor executorRunnable)
+    {
+        mLock.lock();
+        try
+        {
+            this.mCommands.add(new Command(command, executorRunnable));
+        } finally
+        {
+            mLock.unlock();
+        }
     }
 
     public void run()
@@ -193,7 +208,7 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
                 try
                 {
                     Socket socket = mServerSocket.accept();
-                    ssmPeer peer = new ssmPeer(socket.getInetAddress());
+                    Peer peer = new Peer(socket.getInetAddress());
 
                     AddConnection(peer, socket);
                 } catch (IOException e)
@@ -221,23 +236,27 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
 
                 for (int i = 0; i < mReceivedQueue.size(); i ++)
                 {
-                    ssmMessage message = ((LinkedList<ssmMessage>) mReceivedQueue).get(i);
+                    Message message = ((LinkedList<Message>) mReceivedQueue).get(i);
 
-                    if (message.GetType() == ssmMessageType.DISCONNECT)
+                    if (message.GetType() == MessageType.DISCONNECT)
                         ForceDisconnect(message.GetPeer());
-                    else if (message.GetType() == ssmMessageType.PING)
+                    else if (message.GetType() == MessageType.PING)
                     {
                         ByteBuffer buffer = ByteBuffer.allocate(8);
                         buffer.putLong(System.currentTimeMillis());
                         buffer.flip();
 
-                        SendMessage(new ssmMessage(null, 0, ssmMessageType.PONG, buffer.array()));
+                        SendMessage(new Message(null, 0, MessageType.PONG, buffer.array()));
                     }
+                    else
+                        for (Command command : mCommands)
+                            if (command.GetCommand() == message.GetType())
+                                command.Execute(message);
 
                     if (mMessageCallbacks.containsKey(message.GetReplyID()))
                     {
                         mMessages.remove(message.GetReplyID());
-                        ssmCallBack<ssmMessage> mcb = mMessageCallbacks.get(message.GetReplyID());
+                        SSMCallBack<Message> mcb = mMessageCallbacks.get(message.GetReplyID());
                         mMessageCallbacks.remove(message.GetReplyID());
 
                         mcb.CallBack(message);
@@ -247,7 +266,7 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
                 }
 
                 for (int i : toRemove)
-                    ((LinkedList<ssmMessage>) mReceivedQueue).remove(i);
+                    ((LinkedList<Message>) mReceivedQueue).remove(i);
 
                 List<byte[]> remove = new ArrayList<byte[]>();
 
@@ -256,7 +275,7 @@ public class ssmTCPTaskManager implements ssmTaskManager, Runnable
                         remove.add(id);
                     else
                     {
-                        ssmMessage message = mMessages.get(id);
+                        Message message = mMessages.get(id);
 
                         if (!message.ShouldSend())
                             remove.add(id);

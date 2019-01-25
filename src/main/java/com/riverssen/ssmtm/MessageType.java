@@ -1,6 +1,6 @@
 package com.riverssen.ssmtm;
 
-public class ssmMessageType
+public class MessageType
 {
     public static final int
             MESSAGE_UTF = 0,

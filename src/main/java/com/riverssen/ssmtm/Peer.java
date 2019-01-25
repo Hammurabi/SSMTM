@@ -3,16 +3,16 @@ package com.riverssen.ssmtm;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-public class ssmPeer
+public class Peer
 {
     private InetAddress mIPADDRESS;
 
-    public ssmPeer(InetAddress address)
+    public Peer(InetAddress address)
     {
         this.mIPADDRESS = address;
     }
 
-    public ssmPeer(String address) throws UnknownHostException
+    public Peer(String address) throws UnknownHostException
     {
         this.mIPADDRESS = InetAddress.getByName(address);
     }

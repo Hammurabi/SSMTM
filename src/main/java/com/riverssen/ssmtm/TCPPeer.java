@@ -10,11 +10,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class ssmTCPPeer implements Runnable
+public class TCPPeer implements Runnable
 {
-    private final Queue<ssmMessage>     mMessageSendQueue;
-    private final Queue<ssmMessage>     mMessageReceiveQueue;
-    private final ssmPeer               mPeer;
+    private final Queue<Message>     mMessageSendQueue;
+    private final Queue<Message>     mMessageReceiveQueue;
+    private final Peer mPeer;
     private Lock                        mLock;
     private boolean                     mKeepRunning;
     private Socket                      mSocket;
@@ -24,11 +24,11 @@ public class ssmTCPPeer implements Runnable
 
     private AtomicLong                  mNumCorrupted;
 
-    public ssmTCPPeer(ssmPeer peer, Socket socket) throws IOException
+    public TCPPeer(Peer peer, Socket socket) throws IOException
     {
         this.mPeer                  = peer;
-        this.mMessageSendQueue      = new LinkedList<ssmMessage>();
-        this.mMessageReceiveQueue   = new LinkedList<ssmMessage>();
+        this.mMessageSendQueue      = new LinkedList<Message>();
+        this.mMessageReceiveQueue   = new LinkedList<Message>();
         this.mSocket                = socket;
 
         this.mDataOutputStream      = new DataOutputStream(socket.getOutputStream());
@@ -38,7 +38,7 @@ public class ssmTCPPeer implements Runnable
 
     }
 
-    public void Poll(final Queue<ssmMessage> receiverQueue)
+    public void Poll(final Queue<Message> receiverQueue)
     {
         mLock.lock();
         try{
@@ -50,7 +50,7 @@ public class ssmTCPPeer implements Runnable
         }
     }
 
-    public void Send(final ssmMessage message)
+    public void Send(final Message message)
     {
         mLock.lock();
         try{
@@ -146,11 +146,11 @@ public class ssmTCPPeer implements Runnable
 
                 mDataInputStream.readFully(message);
 
-                mMessageReceiveQueue.add(new ssmMessage(type, reply, replyID, message, mPeer));
+                mMessageReceiveQueue.add(new Message(type, reply, replyID, message, mPeer));
             } catch (Exception e)
             {
                 mNumCorrupted.set(mNumCorrupted.get() + 1);
-                ssmMessage message = new MessageCorrupted(digest);
+                Message message = new MessageCorrupted(digest);
 
                 Send(message.GetType(), true, message.GetID(), message.GetReplyID(), message.GetData());
             }
@@ -170,7 +170,7 @@ public class ssmTCPPeer implements Runnable
         {
             mLock.lock();
             try{
-                for (ssmMessage message : mMessageSendQueue)
+                for (Message message : mMessageSendQueue)
                     Send(message.GetType(), message.GetShouldReply(), message.GetID(), message.GetReplyID(), message.GetData());
 
                 mMessageSendQueue.clear();

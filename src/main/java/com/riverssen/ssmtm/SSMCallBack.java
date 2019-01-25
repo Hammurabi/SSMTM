@@ -1,11 +1,11 @@
 package com.riverssen.ssmtm;
 
-public abstract class ssmCallBack<T>
+public abstract class SSMCallBack<T>
 {
     private final long  mTimeOut;
     private long        mTimeLogged;
 
-    public ssmCallBack(long timeout)
+    public SSMCallBack(long timeout)
     {
         mTimeOut    = timeout;
         mTimeLogged = System.currentTimeMillis();

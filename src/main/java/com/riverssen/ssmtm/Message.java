@@ -3,7 +3,7 @@ package com.riverssen.ssmtm;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-public class ssmMessage
+public class Message
 {
     /**
      * @param callBack
@@ -11,12 +11,12 @@ public class ssmMessage
      * @param data      If event == null, any replies made to this message will be discarded and this message
      *                  will act as a notification message instead.
      */
-    public ssmMessage(final ssmCallBack<ssmMessage> callBack, final int numtries, final int type, final byte[] data)
+    public Message(final SSMCallBack<Message> callBack, final int numtries, final int type, final byte[] data)
     {
         this(callBack, numtries, type, data, null);
     }
 
-    public ssmMessage(final ssmCallBack<ssmMessage> callBack, final int numtries, final int type, final byte[] data, ssmPeer peer)
+    public Message(final SSMCallBack<Message> callBack, final int numtries, final int type, final byte[] data, Peer peer)
     {
         this.mData          = data;
         this.mReplyCallBack = callBack;
@@ -29,15 +29,15 @@ public class ssmMessage
 
     private final int                       mType;
     private final byte[]                    mData;
-    private final ssmCallBack<ssmMessage>   mReplyCallBack;
+    private final SSMCallBack<Message> mReplyCallBack;
     private final int                       mNumTries;
     private int                             mTries;
-    private ssmPeer                         mPeer;
+    private Peer mPeer;
     private final boolean                   mShouldReply;
     private final byte[]                    mReplyID;
     private long                            mLastTry;
 
-    public ssmMessage(int type, boolean shouldReply, byte[] replyID, byte[] serializedMessage, ssmPeer peer)
+    public Message(int type, boolean shouldReply, byte[] replyID, byte[] serializedMessage, Peer peer)
     {
         this.mData          = serializedMessage;
         this.mType          = type;
@@ -61,7 +61,7 @@ public class ssmMessage
         return mData;
     }
 
-    public ssmCallBack<ssmMessage> GetCallBack()
+    public SSMCallBack<Message> GetCallBack()
     {
         return mReplyCallBack;
     }
@@ -116,7 +116,7 @@ public class ssmMessage
         return mType;
     }
 
-    public ssmPeer GetPeer()
+    public Peer GetPeer()
     {
         return mPeer;
     }
