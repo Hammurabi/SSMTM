@@ -60,14 +60,14 @@ public class TCPTaskManager implements TaskManager
             TCPPeer pServer = mConnections.get(peer.toString());
 
             pServer.Send(message);
+        }
 
-            if (message.GetShouldReply())
-            {
-                mMessageCallbacks.put(message.GetID(), message.GetCallBack());
-                mMessages.put(message.GetID(), message);
-                message.GetCallBack().Log();
-                message.Send();
-            }
+        if (message.GetShouldReply())
+        {
+            mMessageCallbacks.put(message.GetID(), message.GetCallBack());
+            mMessages.put(message.GetID(), message);
+            message.GetCallBack().Log();
+            message.Send();
         }
     }
 
@@ -76,12 +76,33 @@ public class TCPTaskManager implements TaskManager
         if (mConnections.containsKey(peer.toString()))
         {
             mConnections.get(peer.toString()).Send(message);
+        }
+
+        if (message.GetShouldReply())
+        {
+            mMessageCallbacks.put(message.GetID(), message.GetCallBack());
+            mMessages.put(message.GetID(), message);
+            message.GetCallBack().Log();
+        }
+    }
+
+    public void SendMessageToAllExcept(final Message message, final Peer nosend)
+    {
+        for (Peer peer : mPeers)
+        {
+            if (peer == nosend)
+                continue;
+
+            TCPPeer pServer = mConnections.get(peer.toString());
+
+            pServer.Send(message);
 
             if (message.GetShouldReply())
             {
                 mMessageCallbacks.put(message.GetID(), message.GetCallBack());
                 mMessages.put(message.GetID(), message);
                 message.GetCallBack().Log();
+                message.Send();
             }
         }
     }
