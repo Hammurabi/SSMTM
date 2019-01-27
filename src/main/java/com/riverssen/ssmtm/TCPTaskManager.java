@@ -3,7 +3,6 @@ package com.riverssen.ssmtm;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,17 +21,17 @@ public class TCPTaskManager implements TaskManager
     private int                                         mConnectionLimit;
     private List<Command>                               mCommands;
     private short                                       mPort;
+    private SSMCallBack<Peer>                           mDisconnectionCallback;
+    private RPCRuntime                                  mRPCEnvironment;
 
-    public TCPTaskManager(final int connectionLimit, short port)
+    public TCPTaskManager()
     {
-        this.mPeers             = new LinkedHashSet<Peer>();
-        this.mMessageCallbacks  = new HashMap<byte[], SSMCallBack<Message>>();
-        this.mMessages          = new HashMap<byte[], Message>();
-        this.mConnections       = new HashMap<String, TCPPeer>();
-        this.mReceivedQueue     = new LinkedList<Message>();
-        this.mConnectionLimit   = connectionLimit;
+        this.mPeers             = new LinkedHashSet<>();
+        this.mMessageCallbacks  = new HashMap<>();
+        this.mMessages          = new HashMap<>();
+        this.mConnections       = new HashMap<>();
+        this.mReceivedQueue     = new LinkedList<>();
         this.mCommands          = new ArrayList<>();
-        this.mPort              = port;
     }
 
     private void PollMessages()
@@ -43,6 +42,15 @@ public class TCPTaskManager implements TaskManager
 
             pServer.Poll(mReceivedQueue);
         }
+    }
+
+    @Override
+    public void Setup(int connectionlimit, int port, SSMCallBack<Peer> disconnectionCallback, RPCRuntime rpcEnvironment)
+    {
+        this.mConnectionLimit   = connectionlimit;
+        this.mPort              = (short) port;
+        this.mDisconnectionCallback = disconnectionCallback;
+        this.mRPCEnvironment    = rpcEnvironment;
     }
 
     public void SendMessage(final Message message)
@@ -89,7 +97,6 @@ public class TCPTaskManager implements TaskManager
                 try {
                      Socket socket = new Socket(peer.GetAddress(), port);
                      TCPPeer TCPpeer = new TCPPeer(peer, socket);
-//                     TCPpeer.start();
 
                     ExecutorService service = Executors.newSingleThreadExecutor();
                     service.execute(TCPpeer);
@@ -122,7 +129,6 @@ public class TCPTaskManager implements TaskManager
                 try
                 {
                     TCPPeer TCPpeer = new TCPPeer(peer, socket);
-//                    TCPpeer.start();
 
                     ExecutorService service = Executors.newSingleThreadExecutor();
                     service.execute(TCPpeer);
@@ -238,26 +244,30 @@ public class TCPTaskManager implements TaskManager
                 PollMessages();
 
 
-                List<Integer> toRemove = new ArrayList<Integer>();
+//                List<Integer> toRemove = new ArrayList<Integer>();
 
                 for (int i = 0; i < mReceivedQueue.size(); i ++)
                 {
                     Message message = ((LinkedList<Message>) mReceivedQueue).get(i);
 
                     if (message.GetType() == MessageType.DISCONNECT)
-                        ForceDisconnect(message.GetPeer());
-                    else if (message.GetType() == MessageType.PING)
                     {
-                        ByteBuffer buffer = ByteBuffer.allocate(8);
-                        buffer.putLong(System.currentTimeMillis());
-                        buffer.flip();
+                        ForceDisconnect(message.GetPeer());
+                        mDisconnectionCallback.CallBack(message.GetPeer());
+                    } else if (message.GetType() == MessageType.MESSAGE_RECEIVED_SUCCESSFULLY)
+                    {
+                        mMessageCallbacks.remove(message.GetReplyID());
+                        mMessages.remove(message.GetReplyID());
+                    } else if (message.GetType() == MessageType.MESSAGE_RECEIVED_CORRUPTED)
+                    {
+                        if (mMessageCallbacks.containsKey(message.GetReplyID()))
+                            SendMessage(mMessages.get(message.GetData()), message.GetPeer());
+                    } else if (message.GetType() == MessageType.RPC_COMMAND)
+                        mRPCEnvironment.Execute(message, this);
 
-                        SendMessage(new Message(null, 0, MessageType.PONG, buffer.array()));
-                    }
-                    else
-                        for (Command command : mCommands)
-                            if (command.GetCommand() == message.GetType())
-                                command.Execute(message);
+                    for (Command command : mCommands)
+                        if (command.GetCommand() == message.GetType())
+                            command.Execute(message);
 
                     if (mMessageCallbacks.containsKey(message.GetReplyID()))
                     {
@@ -266,13 +276,10 @@ public class TCPTaskManager implements TaskManager
                         mMessageCallbacks.remove(message.GetReplyID());
 
                         mcb.CallBack(message);
-
-                        toRemove.add(i);
                     }
                 }
 
-                for (int i : toRemove)
-                    ((LinkedList<Message>) mReceivedQueue).remove(i);
+                mReceivedQueue.clear();
 
                 List<byte[]> remove = new ArrayList<byte[]>();
 

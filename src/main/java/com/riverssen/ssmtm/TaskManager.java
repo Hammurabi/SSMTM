@@ -5,6 +5,7 @@ import java.util.Set;
 
 public interface TaskManager extends Runnable
 {
+    void Setup(int connectionlimit, int port, SSMCallBack<Peer> disconnectionCallback, RPCRuntime rpcEnvironment);
     /**
      * @param message
      *
