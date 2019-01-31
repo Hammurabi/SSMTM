@@ -6,6 +6,7 @@ import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -190,6 +191,27 @@ public class TCPTaskManager implements TaskManager
             mLock.unlock();
             return succeeded;
         }
+    }
+
+    @Override
+    public boolean IsConnected(Peer peer)
+    {
+        AtomicBoolean connected = new AtomicBoolean(false);
+
+        mLock.lock();
+        try {
+            for (Peer p : mPeers)
+                if (p.equals(peer))
+                {
+                    connected.set(true);
+                    break;
+                }
+        } finally
+        {
+            mLock.unlock();
+        }
+
+        return connected.get();
     }
 
     @Override
