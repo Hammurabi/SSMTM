@@ -34,8 +34,6 @@ public class TCPPeer implements Runnable
         this.mDataOutputStream      = new DataOutputStream(socket.getOutputStream());
         this.mDataInputStream       = new DataInputStream(socket.getInputStream());
         this.mNumCorrupted          = new AtomicLong(0);
-
-
     }
 
     public void Poll(final Queue<Message> receiverQueue)
@@ -183,12 +181,6 @@ public class TCPPeer implements Runnable
             } finally
             {
                 mLock.unlock();
-            }
-
-            try {
-                Thread.sleep(100);
-            } catch (Exception e)
-            {
             }
         }
 

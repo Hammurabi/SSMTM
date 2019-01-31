@@ -26,6 +26,7 @@ public interface TaskManager extends Runnable
      */
     boolean ForceConnect(final Peer peer, int port);
     boolean ForceDisconnect(final Peer peer);
+    void BlockPeer(final Peer peer);
     Set<Peer> GetConnected();
     Queue<Message> GetMessages();
     void RegisterCommand(final int command, final CommandExecutor runnable);

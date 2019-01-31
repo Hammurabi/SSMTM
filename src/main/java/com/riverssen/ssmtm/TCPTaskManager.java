@@ -11,11 +11,11 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class TCPTaskManager implements TaskManager
 {
-    private final Set<Peer>                             mPeers;
-    private final Map<byte[], SSMCallBack<Message>>     mMessageCallbacks;
-    private final Map<byte[], Message>                  mMessages;
-    private final Map<String, TCPPeer>                  mConnections;
-    private final Queue<Message>                        mReceivedQueue;
+    private       Set<Peer>                             mPeers;
+    private       Map<byte[], SSMCallBack<Message>>     mMessageCallbacks;
+    private       Map<byte[], Message>                  mMessages;
+    private       Map<String, TCPPeer>                  mConnections;
+    private       Queue<Message>                        mReceivedQueue;
     private Lock                                        mLock;
     private boolean                                     mKeepRunning;
     private int                                         mConnectionLimit;
@@ -23,15 +23,10 @@ public class TCPTaskManager implements TaskManager
     private short                                       mPort;
     private SSMCallBack<Peer>                           mDisconnectionCallback;
     private RPCRuntime                                  mRPCEnvironment;
+    private       Set<Peer>                             mBlockedPeers;
 
     public TCPTaskManager()
     {
-        this.mPeers             = new LinkedHashSet<>();
-        this.mMessageCallbacks  = new HashMap<>();
-        this.mMessages          = new HashMap<>();
-        this.mConnections       = new HashMap<>();
-        this.mReceivedQueue     = new LinkedList<>();
-        this.mCommands          = new ArrayList<>();
     }
 
     private void PollMessages()
@@ -130,6 +125,10 @@ public class TCPTaskManager implements TaskManager
                      succeeded = true;
                 } catch (Exception e)
                 {
+                    if (mConnections.containsKey(peer.toString()))
+                        mConnections.remove(peer.toString());
+                    if (mPeers.contains(peer))
+                        mPeers.remove(peer);
                 }
             }
         } finally
@@ -145,7 +144,7 @@ public class TCPTaskManager implements TaskManager
 
         try
         {
-            if (!mConnections.containsKey(peer.toString()) && mConnectionLimit > mConnections.size())
+            if (!mBlockedPeers.contains(peer) && !mConnections.containsKey(peer.toString()) && mConnectionLimit > mConnections.size())
             {
                 try
                 {
@@ -193,6 +192,20 @@ public class TCPTaskManager implements TaskManager
         }
     }
 
+    @Override
+    public void BlockPeer(final Peer peer)
+    {
+        mLock.lock();
+
+        try
+        {
+            mBlockedPeers.add(peer);
+        } finally
+        {
+            mLock.unlock();
+        }
+    }
+
     public Set<Peer> GetConnected()
     {
         return mPeers;
@@ -218,6 +231,14 @@ public class TCPTaskManager implements TaskManager
 
     public void run()
     {
+        this.mPeers             = new LinkedHashSet<>();
+        this.mMessageCallbacks  = new HashMap<>();
+        this.mMessages          = new HashMap<>();
+        this.mConnections       = new HashMap<>();
+        this.mReceivedQueue     = new LinkedList<>();
+        this.mCommands          = new ArrayList<>();
+        this.mBlockedPeers      = new LinkedHashSet<>();
+
         mLock = new ReentrantLock();
         mKeepRunning = true;
 
