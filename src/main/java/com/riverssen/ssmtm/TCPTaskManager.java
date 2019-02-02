@@ -408,12 +408,12 @@ public class TCPTaskManager implements TaskManager
                 mLock.unlock();
             }
 
-            try
-            {
-                Thread.sleep(25);
-            } catch (Exception e)
-            {
-            }
+//            try
+//            {
+//                Thread.sleep(25);
+//            } catch (Exception e)
+//            {
+//            }
         }
 
         for (TCPPeer peer : mConnections.values())
