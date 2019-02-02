@@ -26,6 +26,8 @@ public class TCPTaskManager implements TaskManager
     private RPCRuntime                                  mRPCEnvironment;
     private       Set<Peer>                             mBlockedPeers;
     private Queue<ConnectionTicket>                     mForceConnections;
+    private Queue<Peer>                                 mForceDisconnections;
+    private Queue<Integer>                              mForceAbort;
 
     private class ConnectionTicket
     {
@@ -123,6 +125,7 @@ public class TCPTaskManager implements TaskManager
 
         try{
             mForceConnections.add(new ConnectionTicket(peer, port));
+            succeeded = true;
         } finally
         {
             mLock.unlock();
@@ -170,13 +173,8 @@ public class TCPTaskManager implements TaskManager
 
         try
         {
-            if (mConnections.containsKey(peer.toString()))
-            {
-                mConnections.get(peer.toString()).Abort();
-                mPeers.remove(peer);
-
-                succeeded = true;
-            }
+            mForceDisconnections.add(peer);
+            succeeded = true;
         } finally
         {
             mLock.unlock();
@@ -337,7 +335,23 @@ public class TCPTaskManager implements TaskManager
                     }
                 }
 
+                for (Peer peer : mForceDisconnections)
+                {
+                    if (mConnections.containsKey(peer.toString()))
+                    {
+                        mConnections.get(peer.toString()).Abort();
+                        mPeers.remove(peer);
+                    }
+                }
+
+                for (int i : mForceAbort)
+                {
+                    mKeepRunning = false;
+                }
+
                 mForceConnections.clear();
+                mForceDisconnections.clear();
+                mForceAbort.clear();
 
 //                List<Integer> toRemove = new ArrayList<Integer>();
 
