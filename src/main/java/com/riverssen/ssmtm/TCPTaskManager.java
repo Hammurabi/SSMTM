@@ -242,6 +242,18 @@ public class TCPTaskManager implements TaskManager
         }
     }
 
+    @Override
+    public void AbortOperations()
+    {
+        mLock.lock();
+        try{
+            mKeepRunning = false;
+        } finally
+        {
+            mLock.unlock();
+        }
+    }
+
     public void run()
     {
         this.mPeers             = new LinkedHashSet<>();
@@ -403,5 +415,8 @@ public class TCPTaskManager implements TaskManager
             {
             }
         }
+
+        for (TCPPeer peer : mConnections.values())
+            peer.Abort();
     }
 }

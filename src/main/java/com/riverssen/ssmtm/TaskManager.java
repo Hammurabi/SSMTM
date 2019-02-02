@@ -31,4 +31,5 @@ public interface TaskManager extends Runnable
     Set<Peer> GetConnected();
     Queue<Message> GetMessages();
     void RegisterCommand(final int command, final CommandExecutor runnable);
+    void AbortOperations();
 }
