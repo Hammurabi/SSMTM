@@ -25,6 +25,19 @@ public class TCPTaskManager implements TaskManager
     private SSMCallBack<Peer>                           mDisconnectionCallback;
     private RPCRuntime                                  mRPCEnvironment;
     private       Set<Peer>                             mBlockedPeers;
+    private Queue<ConnectionTicket>                     mForceConnections;
+
+    private class ConnectionTicket
+    {
+        final Peer  toPerr;
+        final int   toPort;
+
+        ConnectionTicket(final Peer to, int port)
+        {
+            this.toPerr = to;
+            this.toPort = port;
+        }
+    }
 
     public TCPTaskManager()
     {
@@ -103,35 +116,13 @@ public class TCPTaskManager implements TaskManager
         }
     }
 
-    public boolean ForceConnect(final Peer peer, int port)
+    public boolean ForceConnect(final Peer peer, final int port)
     {
         mLock.lock();
         boolean succeeded = false;
 
         try{
-            if (!mConnections.containsKey(peer.toString()))
-            {
-                try {
-                     Socket socket = new Socket(peer.GetAddress(), port);
-                     TCPPeer TCPpeer = new TCPPeer(peer, socket);
-
-                    ExecutorService service = Executors.newSingleThreadExecutor();
-                    service.execute(TCPpeer);
-
-                     mConnections.put(peer.toString(), TCPpeer);
-                     mPeers.add(peer);
-
-                    System.out.println("connected to: " + peer);
-
-                     succeeded = true;
-                } catch (Exception e)
-                {
-                    if (mConnections.containsKey(peer.toString()))
-                        mConnections.remove(peer.toString());
-                    if (mPeers.contains(peer))
-                        mPeers.remove(peer);
-                }
-            }
+            mForceConnections.add(new ConnectionTicket(peer, port));
         } finally
         {
             mLock.unlock();
@@ -260,6 +251,7 @@ public class TCPTaskManager implements TaskManager
         this.mReceivedQueue     = new LinkedList<>();
         this.mCommands          = new ArrayList<>();
         this.mBlockedPeers      = new LinkedHashSet<>();
+        this.mForceConnections  = new LinkedList<>();
 
         mLock = new ReentrantLock();
         mKeepRunning = true;
@@ -307,6 +299,33 @@ public class TCPTaskManager implements TaskManager
             {
                 PollMessages();
 
+                for (ConnectionTicket ticket : mForceConnections)
+                {
+                    if (!mConnections.containsKey(ticket.toPerr.toString()))
+                    {
+                        try {
+                            Socket socket = new Socket(ticket.toPerr.GetAddress(), ticket.toPort);
+                            TCPPeer TCPpeer = new TCPPeer(ticket.toPerr, socket);
+
+                            ExecutorService service = Executors.newSingleThreadExecutor();
+                            service.execute(TCPpeer);
+
+                            mConnections.put(ticket.toPerr.toString(), TCPpeer);
+                            mPeers.add(ticket.toPerr);
+
+                            System.out.println("connected to: " + ticket.toPerr);
+
+                        } catch (Exception e)
+                        {
+                            if (mConnections.containsKey(ticket.toPerr.toString()))
+                                mConnections.remove(ticket.toPerr.toString());
+                            if (mPeers.contains(ticket.toPerr))
+                                mPeers.remove(ticket.toPerr);
+                        }
+                    }
+                }
+
+                mForceConnections.clear();
 
 //                List<Integer> toRemove = new ArrayList<Integer>();
 
