@@ -245,7 +245,7 @@ public class TCPTaskManager implements TaskManager
     {
         mLock.lock();
         try{
-            mKeepRunning = false;
+            mForceAbort.add(0);
         } finally
         {
             mLock.unlock();
