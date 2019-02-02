@@ -262,6 +262,8 @@ public class TCPTaskManager implements TaskManager
         this.mCommands          = new ArrayList<>();
         this.mBlockedPeers      = new LinkedHashSet<>();
         this.mForceConnections  = new LinkedList<>();
+        this.mForceDisconnections = new LinkedList<>();
+        this.mForceAbort        = new LinkedList<>();
 
         mLock = new ReentrantLock();
         mKeepRunning = true;
