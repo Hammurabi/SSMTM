@@ -18,7 +18,7 @@ public class TCPTaskManager implements TaskManager
     private       Map<String, TCPPeer>                  mConnections;
     private       List<Message>                         mReceivedQueue;
 //    private Lock                                        mLock;
-    private boolean                                     mKeepRunning;
+    private AtomicBoolean                               mKeepRunning;
     private int                                         mConnectionLimit;
     private List<Command>                               mCommands;
     private short                                       mPort;
@@ -220,13 +220,13 @@ public class TCPTaskManager implements TaskManager
     @Override
     public void AbortOperations()
     {
-        mKeepRunning = false;
+        mKeepRunning.set(false);
     }
 
     public void run()
     {
 //        mLock = new ReentrantLock();
-        mKeepRunning = true;
+        mKeepRunning.set(true);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
@@ -241,9 +241,9 @@ public class TCPTaskManager implements TaskManager
             }
 
             if (mServerSocket == null)
-                mKeepRunning = false;
+                mKeepRunning.set(false);
 
-            while (mKeepRunning)
+            while (mKeepRunning.get())
             {
                 try
                 {
@@ -264,7 +264,7 @@ public class TCPTaskManager implements TaskManager
             }
         });
 
-        while (mKeepRunning)
+        while (mKeepRunning.get())
         {
 //            mLock.lock();
             try
