@@ -62,6 +62,17 @@ public class TCPTaskManager implements TaskManager
         this.mPort              = (short) port;
         this.mDisconnectionCallback = disconnectionCallback;
         this.mRPCEnvironment    = rpcEnvironment;
+
+
+        this.mPeers             = Collections.synchronizedSet(new LinkedHashSet<>());
+        this.mMessageCallbacks  = Collections.synchronizedMap(new HashMap<>());
+        this.mMessages          = Collections.synchronizedMap(new HashMap<>());
+        this.mConnections       = Collections.synchronizedMap(new HashMap<>());
+        this.mReceivedQueue     = Collections.synchronizedList(new LinkedList<>());
+        this.mCommands          = Collections.synchronizedList(new ArrayList<>());
+        this.mBlockedPeers      = Collections.synchronizedSet(new LinkedHashSet<>());
+        this.mForceConnections  = Collections.synchronizedList(new LinkedList<>());
+        this.mForceDisconnections = Collections.synchronizedList(new LinkedList<>());
     }
 
     public void SendMessage(final Message message)
@@ -214,16 +225,6 @@ public class TCPTaskManager implements TaskManager
 
     public void run()
     {
-        this.mPeers             = Collections.synchronizedSet(new LinkedHashSet<>());
-        this.mMessageCallbacks  = Collections.synchronizedMap(new HashMap<>());
-        this.mMessages          = Collections.synchronizedMap(new HashMap<>());
-        this.mConnections       = Collections.synchronizedMap(new HashMap<>());
-        this.mReceivedQueue     = Collections.synchronizedList(new LinkedList<>());
-        this.mCommands          = Collections.synchronizedList(new ArrayList<>());
-        this.mBlockedPeers      = Collections.synchronizedSet(new LinkedHashSet<>());
-        this.mForceConnections  = Collections.synchronizedList(new LinkedList<>());
-        this.mForceDisconnections = Collections.synchronizedList(new LinkedList<>());
-
 //        mLock = new ReentrantLock();
         mKeepRunning = true;
 
