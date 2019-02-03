@@ -16,8 +16,8 @@ public class TCPTaskManager implements TaskManager
     private       Map<byte[], SSMCallBack<Message>>     mMessageCallbacks;
     private       Map<byte[], Message>                  mMessages;
     private       Map<String, TCPPeer>                  mConnections;
-    private       Queue<Message>                        mReceivedQueue;
-    private Lock                                        mLock;
+    private       List<Message>                         mReceivedQueue;
+//    private Lock                                        mLock;
     private boolean                                     mKeepRunning;
     private int                                         mConnectionLimit;
     private List<Command>                               mCommands;
@@ -25,9 +25,9 @@ public class TCPTaskManager implements TaskManager
     private SSMCallBack<Peer>                           mDisconnectionCallback;
     private RPCRuntime                                  mRPCEnvironment;
     private       Set<Peer>                             mBlockedPeers;
-    private Queue<ConnectionTicket>                     mForceConnections;
-    private Queue<Peer>                                 mForceDisconnections;
-    private Queue<Integer>                              mForceAbort;
+    private List<ConnectionTicket>                      mForceConnections;
+    private List<Peer>                                  mForceDisconnections;
+//    private List<Integer>                               mForceAbort;
 
     private class ConnectionTicket
     {
@@ -120,22 +120,14 @@ public class TCPTaskManager implements TaskManager
 
     public boolean ForceConnect(final Peer peer, final int port)
     {
-        mLock.lock();
-        boolean succeeded = false;
+        mForceConnections.add(new ConnectionTicket(peer, port));
 
-        try{
-            mForceConnections.add(new ConnectionTicket(peer, port));
-            succeeded = true;
-        } finally
-        {
-            mLock.unlock();
-            return succeeded;
-        }
+        return true;
     }
 
-    public void AddConnection(final Peer peer, Socket socket)
+    private void AddConnection(final Peer peer, Socket socket)
     {
-        mLock.lock();
+//        mLock.lock();
 
         try
         {
@@ -162,24 +154,15 @@ public class TCPTaskManager implements TaskManager
             e.printStackTrace();
         } finally
         {
-            mLock.unlock();
+//            mLock.unlock();
         }
     }
 
     public boolean ForceDisconnect(final Peer peer)
     {
-        mLock.lock();
-        boolean succeeded = false;
+        mForceDisconnections.add(peer);
 
-        try
-        {
-            mForceDisconnections.add(peer);
-            succeeded = true;
-        } finally
-        {
-            mLock.unlock();
-            return succeeded;
-        }
+        return true;
     }
 
     @Override
@@ -187,17 +170,14 @@ public class TCPTaskManager implements TaskManager
     {
         AtomicBoolean connected = new AtomicBoolean(false);
 
-        mLock.lock();
-        try {
+        synchronized (mPeers)
+        {
             for (Peer p : mPeers)
                 if (p.equals(peer))
                 {
                     connected.set(true);
                     break;
                 }
-        } finally
-        {
-            mLock.unlock();
         }
 
         return connected.get();
@@ -206,15 +186,8 @@ public class TCPTaskManager implements TaskManager
     @Override
     public void BlockPeer(final Peer peer)
     {
-        mLock.lock();
-
-        try
-        {
-            mBlockedPeers.add(peer);
-        } finally
-        {
-            mLock.unlock();
-        }
+        mBlockedPeers.add(peer);
+        mForceDisconnections.add(peer);
     }
 
     public Set<Peer> GetConnected()
@@ -222,7 +195,7 @@ public class TCPTaskManager implements TaskManager
         return mPeers;
     }
 
-    public Queue<Message> GetMessages()
+    public List<Message> GetMessages()
     {
         return mReceivedQueue;
     }
@@ -230,42 +203,28 @@ public class TCPTaskManager implements TaskManager
     @Override
     public void RegisterCommand(final int command, final CommandExecutor executorRunnable)
     {
-        mLock.lock();
-        try
-        {
-            this.mCommands.add(new Command(command, executorRunnable));
-        } finally
-        {
-            mLock.unlock();
-        }
+        this.mCommands.add(new Command(command, executorRunnable));
     }
 
     @Override
     public void AbortOperations()
     {
-        mLock.lock();
-        try{
-            mForceAbort.add(0);
-        } finally
-        {
-            mLock.unlock();
-        }
+        mKeepRunning = false;
     }
 
     public void run()
     {
-        this.mPeers             = new LinkedHashSet<>();
-        this.mMessageCallbacks  = new HashMap<>();
-        this.mMessages          = new HashMap<>();
-        this.mConnections       = new HashMap<>();
-        this.mReceivedQueue     = new LinkedList<>();
-        this.mCommands          = new ArrayList<>();
-        this.mBlockedPeers      = new LinkedHashSet<>();
-        this.mForceConnections  = new LinkedList<>();
-        this.mForceDisconnections = new LinkedList<>();
-        this.mForceAbort        = new LinkedList<>();
+        this.mPeers             = Collections.synchronizedSet(new LinkedHashSet<>());
+        this.mMessageCallbacks  = Collections.synchronizedMap(new HashMap<>());
+        this.mMessages          = Collections.synchronizedMap(new HashMap<>());
+        this.mConnections       = Collections.synchronizedMap(new HashMap<>());
+        this.mReceivedQueue     = Collections.synchronizedList(new LinkedList<>());
+        this.mCommands          = Collections.synchronizedList(new ArrayList<>());
+        this.mBlockedPeers      = Collections.synchronizedSet(new LinkedHashSet<>());
+        this.mForceConnections  = Collections.synchronizedList(new LinkedList<>());
+        this.mForceDisconnections = Collections.synchronizedList(new LinkedList<>());
 
-        mLock = new ReentrantLock();
+//        mLock = new ReentrantLock();
         mKeepRunning = true;
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -306,87 +265,95 @@ public class TCPTaskManager implements TaskManager
 
         while (mKeepRunning)
         {
-            mLock.lock();
+//            mLock.lock();
             try
             {
                 PollMessages();
 
-                for (ConnectionTicket ticket : mForceConnections)
+                synchronized (mForceConnections)
                 {
-                    if (!mConnections.containsKey(ticket.toPerr.toString()))
+                    for (ConnectionTicket ticket : mForceConnections)
                     {
-                        try {
-                            Socket socket = new Socket(ticket.toPerr.GetAddress(), ticket.toPort);
-                            TCPPeer TCPpeer = new TCPPeer(ticket.toPerr, socket);
-
-                            ExecutorService service = Executors.newSingleThreadExecutor();
-                            service.execute(TCPpeer);
-
-                            mConnections.put(ticket.toPerr.toString(), TCPpeer);
-                            mPeers.add(ticket.toPerr);
-
-                            System.out.println("connected to: " + ticket.toPerr);
-
-                        } catch (Exception e)
+                        if (!mConnections.containsKey(ticket.toPerr.toString()))
                         {
-                            if (mConnections.containsKey(ticket.toPerr.toString()))
-                                mConnections.remove(ticket.toPerr.toString());
-                            if (mPeers.contains(ticket.toPerr))
-                                mPeers.remove(ticket.toPerr);
+                            try {
+                                Socket socket = new Socket(ticket.toPerr.GetAddress(), ticket.toPort);
+                                TCPPeer TCPpeer = new TCPPeer(ticket.toPerr, socket);
+
+                                ExecutorService service = Executors.newSingleThreadExecutor();
+                                service.execute(TCPpeer);
+
+                                mConnections.put(ticket.toPerr.toString(), TCPpeer);
+                                mPeers.add(ticket.toPerr);
+
+                                System.out.println("connected to: " + ticket.toPerr);
+
+                            } catch (Exception e)
+                            {
+                                if (mConnections.containsKey(ticket.toPerr.toString()))
+                                    mConnections.remove(ticket.toPerr.toString());
+                                if (mPeers.contains(ticket.toPerr))
+                                    mPeers.remove(ticket.toPerr);
+                            }
                         }
                     }
                 }
 
-                for (Peer peer : mForceDisconnections)
+                synchronized (mForceDisconnections)
                 {
-                    if (mConnections.containsKey(peer.toString()))
+                    for (Peer peer : mForceDisconnections)
                     {
-                        mConnections.get(peer.toString()).Abort();
-                        mPeers.remove(peer);
+                        if (mConnections.containsKey(peer.toString()))
+                        {
+                            mConnections.get(peer.toString()).Abort();
+                            mPeers.remove(peer);
+                        }
                     }
                 }
 
-                for (int i : mForceAbort)
-                {
-                    mKeepRunning = false;
-                }
+//                for (int i : mForceAbort)
+//                {
+//                    mKeepRunning = false;
+//                }
 
                 mForceConnections.clear();
                 mForceDisconnections.clear();
-                mForceAbort.clear();
 
 //                List<Integer> toRemove = new ArrayList<Integer>();
 
-                for (int i = 0; i < mReceivedQueue.size(); i ++)
+                synchronized (mReceivedQueue)
                 {
-                    Message message = ((LinkedList<Message>) mReceivedQueue).get(i);
+                    for (int i = 0; i < mReceivedQueue.size(); i ++)
+                    {
+                        Message message = ((LinkedList<Message>) mReceivedQueue).get(i);
 
-                    if (message.GetType() == MessageType.DISCONNECT)
-                    {
-                        ForceDisconnect(message.GetPeer());
-                        mDisconnectionCallback.CallBack(message.GetPeer());
-                    } else if (message.GetType() == MessageType.MESSAGE_RECEIVED_SUCCESSFULLY)
-                    {
-                        mMessageCallbacks.remove(message.GetReplyID());
-                        mMessages.remove(message.GetReplyID());
-                    } else if (message.GetType() == MessageType.MESSAGE_RECEIVED_CORRUPTED)
-                    {
+                        if (message.GetType() == MessageType.DISCONNECT)
+                        {
+                            ForceDisconnect(message.GetPeer());
+                            mDisconnectionCallback.CallBack(message.GetPeer());
+                        } else if (message.GetType() == MessageType.MESSAGE_RECEIVED_SUCCESSFULLY)
+                        {
+                            mMessageCallbacks.remove(message.GetReplyID());
+                            mMessages.remove(message.GetReplyID());
+                        } else if (message.GetType() == MessageType.MESSAGE_RECEIVED_CORRUPTED)
+                        {
+                            if (mMessageCallbacks.containsKey(message.GetReplyID()))
+                                SendMessage(mMessages.get(message.GetData()), message.GetPeer());
+                        } else if (message.GetType() == MessageType.RPC_COMMAND)
+                            mRPCEnvironment.Execute(message, this);
+
+                        for (Command command : mCommands)
+                            if (command.GetCommand() == message.GetType())
+                                command.Execute(message);
+
                         if (mMessageCallbacks.containsKey(message.GetReplyID()))
-                            SendMessage(mMessages.get(message.GetData()), message.GetPeer());
-                    } else if (message.GetType() == MessageType.RPC_COMMAND)
-                        mRPCEnvironment.Execute(message, this);
+                        {
+                            mMessages.remove(message.GetReplyID());
+                            SSMCallBack<Message> mcb = mMessageCallbacks.get(message.GetReplyID());
+                            mMessageCallbacks.remove(message.GetReplyID());
 
-                    for (Command command : mCommands)
-                        if (command.GetCommand() == message.GetType())
-                            command.Execute(message);
-
-                    if (mMessageCallbacks.containsKey(message.GetReplyID()))
-                    {
-                        mMessages.remove(message.GetReplyID());
-                        SSMCallBack<Message> mcb = mMessageCallbacks.get(message.GetReplyID());
-                        mMessageCallbacks.remove(message.GetReplyID());
-
-                        mcb.CallBack(message);
+                            mcb.CallBack(message);
+                        }
                     }
                 }
 
@@ -394,25 +361,29 @@ public class TCPTaskManager implements TaskManager
 
                 List<byte[]> remove = new ArrayList<byte[]>();
 
-                for (byte[] id : mMessageCallbacks.keySet())
-                    if (mMessageCallbacks.get(id).TimedOut())
-                        remove.add(id);
-                    else
-                    {
-                        Message message = mMessages.get(id);
-
-                        if (!message.ShouldSend())
+                synchronized (mMessageCallbacks)
+                {
+                    for (byte[] id : mMessageCallbacks.keySet())
+                        if (mMessageCallbacks.get(id).TimedOut())
                             remove.add(id);
-                        else if (message.ShouldSend() && message.CanSend())
+                        else
                         {
-                            message.Send();
+                            Message message = mMessages.get(id);
 
-                            if (message.GetPeer() == null)
-                                SendMessage(message);
-                            else
-                                SendMessage(message, message.GetPeer());
+                            if (!message.ShouldSend())
+                                remove.add(id);
+                            else if (message.ShouldSend() && message.CanSend())
+                            {
+                                message.Send();
+
+                                if (message.GetPeer() == null)
+                                    SendMessage(message);
+                                else
+                                    SendMessage(message, message.GetPeer());
+                            }
                         }
-                    }
+                }
+
 
                 for (byte[] tRemove : remove)
                 {
@@ -421,7 +392,7 @@ public class TCPTaskManager implements TaskManager
                 }
             } finally
             {
-                mLock.unlock();
+//                mLock.unlock();
             }
 
 //            try
@@ -432,7 +403,10 @@ public class TCPTaskManager implements TaskManager
 //            }
         }
 
-        for (TCPPeer peer : mConnections.values())
-            peer.Abort();
+        synchronized (mConnections)
+        {
+            for (TCPPeer peer : mConnections.values())
+                peer.Abort();
+        }
     }
 }
