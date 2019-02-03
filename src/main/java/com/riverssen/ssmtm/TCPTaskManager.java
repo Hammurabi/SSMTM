@@ -73,6 +73,7 @@ public class TCPTaskManager implements TaskManager
         this.mBlockedPeers      = Collections.synchronizedSet(new LinkedHashSet<>());
         this.mForceConnections  = Collections.synchronizedList(new LinkedList<>());
         this.mForceDisconnections = Collections.synchronizedList(new LinkedList<>());
+        this.mKeepRunning       = new AtomicBoolean(false);
     }
 
     public void SendMessage(final Message message)
