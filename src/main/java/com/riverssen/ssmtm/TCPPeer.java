@@ -4,18 +4,16 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Collections;
 import java.util.LinkedList;
-import java.util.Queue;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class TCPPeer implements Runnable
 {
-    private final Queue<Message>        mMessageSendQueue;
-    private final Queue<Message>        mMessageReceiveQueue;
+    private final List<Message>         mMessageSendQueue;
+    private final List<Message>         mMessageReceiveQueue;
     private final Peer                  mPeer;
-    private Lock                        mLock;
     private boolean                     mKeepRunning;
     private Socket                      mSocket;
 
@@ -27,8 +25,8 @@ public class TCPPeer implements Runnable
     public TCPPeer(Peer peer, Socket socket) throws IOException
     {
         this.mPeer                  = peer;
-        this.mMessageSendQueue      = new LinkedList<Message>();
-        this.mMessageReceiveQueue   = new LinkedList<Message>();
+        this.mMessageSendQueue      = Collections.synchronizedList(new LinkedList<Message>());
+        this.mMessageReceiveQueue   = Collections.synchronizedList(new LinkedList<Message>());
         this.mSocket                = socket;
 
         this.mDataOutputStream      = new DataOutputStream(socket.getOutputStream());
@@ -36,38 +34,23 @@ public class TCPPeer implements Runnable
         this.mNumCorrupted          = new AtomicLong(0);
     }
 
-    public void Poll(final Queue<Message> receiverQueue)
+    public void Poll(final List<Message> receiverQueue)
     {
-        mLock.lock();
-        try{
+        synchronized (mMessageReceiveQueue)
+        {
             receiverQueue.addAll(mMessageReceiveQueue);
             mMessageReceiveQueue.clear();
-        } finally
-        {
-            mLock.unlock();
         }
     }
 
     public void Send(final Message message)
     {
-        mLock.lock();
-        try{
-            mMessageSendQueue.add(message);
-        } finally
-        {
-            mLock.unlock();
-        }
+        mMessageSendQueue.add(message);
     }
 
     public void Abort()
     {
-        mLock.lock();
-        try{
-            mKeepRunning = false;
-        } finally
-        {
-            mLock.unlock();
-        }
+        mKeepRunning = false;
     }
 
     public AtomicLong GetCorruptedMessages()
@@ -161,15 +144,16 @@ public class TCPPeer implements Runnable
     @Override
     public void run()
     {
-        mLock = new ReentrantLock();
         mKeepRunning = true;
 
         while (mKeepRunning)
         {
-            mLock.lock();
             try{
-                for (Message message : mMessageSendQueue)
-                    Send(message.GetType(), message.GetShouldReply(), message.GetID(), message.GetReplyID(), message.GetData());
+                synchronized (mMessageSendQueue)
+                {
+                    for (Message message : mMessageSendQueue)
+                        Send(message.GetType(), message.GetShouldReply(), message.GetID(), message.GetReplyID(), message.GetData());
+                }
 
                 mMessageSendQueue.clear();
 
@@ -180,7 +164,6 @@ public class TCPPeer implements Runnable
                 e.printStackTrace();
             } finally
             {
-                mLock.unlock();
             }
         }
 

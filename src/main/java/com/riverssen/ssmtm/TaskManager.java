@@ -1,5 +1,6 @@
 package com.riverssen.ssmtm;
 
+import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 
@@ -29,6 +30,7 @@ public interface TaskManager extends Runnable
     boolean IsConnected(final Peer peer);
     void BlockPeer(final Peer peer);
     Set<Peer> GetConnected();
-    Queue<Message> GetMessages();
+    List<Message> GetMessages();
     void RegisterCommand(final int command, final CommandExecutor runnable);
+    void AbortOperations();
 }
