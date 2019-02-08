@@ -78,11 +78,14 @@ public class TCPTaskManager implements TaskManager
 
     public void SendMessage(final Message message)
     {
-        for (Peer peer : mPeers)
+        synchronized (mPeers)
         {
-            TCPPeer pServer = mConnections.get(peer.toString());
+            for (Peer peer : mPeers)
+            {
+                TCPPeer pServer = mConnections.get(peer.toString());
 
-            pServer.Send(message);
+                pServer.Send(message);
+            }
         }
 
         if (message.GetShouldReply())
@@ -111,21 +114,24 @@ public class TCPTaskManager implements TaskManager
 
     public void SendMessageToAllExcept(final Message message, final Peer nosend)
     {
-        for (Peer peer : mPeers)
+        synchronized (mPeers)
         {
-            if (peer == nosend)
-                continue;
-
-            TCPPeer pServer = mConnections.get(peer.toString());
-
-            pServer.Send(message);
-
-            if (message.GetShouldReply())
+            for (Peer peer : mPeers)
             {
-                mMessageCallbacks.put(message.GetID(), message.GetCallBack());
-                mMessages.put(message.GetID(), message);
-                message.GetCallBack().Log();
-                message.Send();
+                if (peer == nosend)
+                    continue;
+
+                TCPPeer pServer = mConnections.get(peer.toString());
+
+                pServer.Send(message);
+
+                if (message.GetShouldReply())
+                {
+                    mMessageCallbacks.put(message.GetID(), message.GetCallBack());
+                    mMessages.put(message.GetID(), message);
+                    message.GetCallBack().Log();
+                    message.Send();
+                }
             }
         }
     }
