@@ -28,6 +28,7 @@ public interface TaskManager extends Runnable
     boolean ForceConnect(final Peer peer, int port);
     boolean ForceDisconnect(final Peer peer);
     boolean IsConnected(final Peer peer);
+    void SendMessageToAllExcept(final Message message, final Peer nosend);
     void BlockPeer(final Peer peer);
     Set<Peer> GetConnected();
     List<Message> GetMessages();
