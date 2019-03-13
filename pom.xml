@@ -13,6 +13,7 @@
 
     <groupId>ssmtm</groupId>
     <artifactId>ssmtm</artifactId>
+    <version>1.0-SNAPSHOT</version>
 
     <dependencyManagement>
         <dependencies>
@@ -49,5 +50,4 @@
             </plugins>
         </pluginManagement>
     </build>
-    <version>0_0_7a</version>
 </project>
